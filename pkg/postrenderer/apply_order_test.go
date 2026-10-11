@@ -1,8 +1,9 @@
 package postrenderer_test
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -525,19 +526,17 @@ func certManagerBeforeDeployments(objects []unstructured.Unstructured) []unstruc
 	result := make([]unstructured.Unstructured, len(objects))
 	copy(result, objects)
 
-	sort.SliceStable(result, func(i, j int) bool {
-		return compareCertManagerOrder(result[i], result[j])
-	})
+	slices.SortStableFunc(result, compareCertManagerOrder)
 
 	return result
 }
 
-func compareCertManagerOrder(a, b unstructured.Unstructured) bool {
+func compareCertManagerOrder(a, b unstructured.Unstructured) int {
 	orderA := getCertManagerOrder(a)
 	orderB := getCertManagerOrder(b)
 
 	if orderA != orderB {
-		return orderA < orderB
+		return cmp.Compare(orderA, orderB)
 	}
 
 	return fallbackCompare(a, b)
@@ -559,15 +558,15 @@ func istioBeforeDeployments(objects []unstructured.Unstructured) []unstructured.
 	result := make([]unstructured.Unstructured, len(objects))
 	copy(result, objects)
 
-	sort.SliceStable(result, func(i, j int) bool {
-		orderA := getIstioOrder(result[i])
-		orderB := getIstioOrder(result[j])
+	slices.SortStableFunc(result, func(a, b unstructured.Unstructured) int {
+		orderA := getIstioOrder(a)
+		orderB := getIstioOrder(b)
 
 		if orderA != orderB {
-			return orderA < orderB
+			return cmp.Compare(orderA, orderB)
 		}
 
-		return fallbackCompare(result[i], result[j])
+		return fallbackCompare(a, b)
 	})
 
 	return result
@@ -588,15 +587,15 @@ func multipleGroupsBeforeDeployments(objects []unstructured.Unstructured) []unst
 	result := make([]unstructured.Unstructured, len(objects))
 	copy(result, objects)
 
-	sort.SliceStable(result, func(i, j int) bool {
-		orderA := getMultiGroupOrder(result[i])
-		orderB := getMultiGroupOrder(result[j])
+	slices.SortStableFunc(result, func(a, b unstructured.Unstructured) int {
+		orderA := getMultiGroupOrder(a)
+		orderB := getMultiGroupOrder(b)
 
 		if orderA != orderB {
-			return orderA < orderB
+			return cmp.Compare(orderA, orderB)
 		}
 
-		return fallbackCompare(result[i], result[j])
+		return fallbackCompare(a, b)
 	})
 
 	return result
@@ -624,15 +623,15 @@ func gapFillingCallback(objects []unstructured.Unstructured) []unstructured.Unst
 	result := make([]unstructured.Unstructured, len(objects))
 	copy(result, objects)
 
-	sort.SliceStable(result, func(i, j int) bool {
-		orderA := getGapFillingOrder(result[i])
-		orderB := getGapFillingOrder(result[j])
+	slices.SortStableFunc(result, func(a, b unstructured.Unstructured) int {
+		orderA := getGapFillingOrder(a)
+		orderB := getGapFillingOrder(b)
 
 		if orderA != orderB {
-			return orderA < orderB
+			return cmp.Compare(orderA, orderB)
 		}
 
-		return fallbackCompare(result[i], result[j])
+		return fallbackCompare(a, b)
 	})
 
 	return result
@@ -668,15 +667,15 @@ func overflowGapCallback(objects []unstructured.Unstructured) []unstructured.Uns
 	result := make([]unstructured.Unstructured, len(objects))
 	copy(result, objects)
 
-	sort.SliceStable(result, func(i, j int) bool {
-		orderA := getOverflowOrder(result[i])
-		orderB := getOverflowOrder(result[j])
+	slices.SortStableFunc(result, func(a, b unstructured.Unstructured) int {
+		orderA := getOverflowOrder(a)
+		orderB := getOverflowOrder(b)
 
 		if orderA != orderB {
-			return orderA < orderB
+			return cmp.Compare(orderA, orderB)
 		}
 
-		return fallbackCompare(result[i], result[j])
+		return fallbackCompare(a, b)
 	})
 
 	return result
@@ -725,23 +724,23 @@ func getTestBuiltinOrder(kind string) int {
 	return 0 // Unknown kinds default to 0
 }
 
-func fallbackCompare(a, b unstructured.Unstructured) bool {
+func fallbackCompare(a, b unstructured.Unstructured) int {
 	// Replicate the fallback comparison logic from main package
 	gvkA := gvkString(a)
 	gvkB := gvkString(b)
 
 	if gvkA != gvkB {
-		return gvkA < gvkB
+		return cmp.Compare(gvkA, gvkB)
 	}
 
 	nsA := a.GetNamespace()
 	nsB := b.GetNamespace()
 
 	if nsA != nsB {
-		return nsA < nsB
+		return cmp.Compare(nsA, nsB)
 	}
 
-	return a.GetName() < b.GetName()
+	return cmp.Compare(a.GetName(), b.GetName())
 }
 
 func gvkString(obj unstructured.Unstructured) string {
@@ -861,9 +860,9 @@ func TestCriticalEdgeCases(t *testing.T) {
 
 		// Test the actual spacing values match expectations
 		objects := []unstructured.Unstructured{
-			makeObj("Namespace", "v1", "", "ns", ""),      // Should be -220 (first in orderFirst)
-			makeObj("Service", "v1", "", "svc", "default"), // Should be -90
-			makeObj("Deployment", "v1", "apps", "deploy", "default"), // Should be -40
+			makeObj("Namespace", "v1", "", "ns", ""),                                                 // Should be -220
+			makeObj("Service", "v1", "", "svc", "default"),                                           // Should be -90
+			makeObj("Deployment", "v1", "apps", "deploy", "default"),                                 // Should be -40
 			makeObj("MutatingWebhookConfiguration", "v1", "admissionregistration.k8s.io", "mwh", ""), // Should be 10
 		}
 
@@ -872,29 +871,29 @@ func TestCriticalEdgeCases(t *testing.T) {
 			result := make([]unstructured.Unstructured, len(objs))
 			copy(result, objs)
 
-			sort.SliceStable(result, func(i, j int) bool {
-				orderA := getTestBuiltinOrder(result[i].GetKind())
-				orderB := getTestBuiltinOrder(result[j].GetKind())
+			slices.SortStableFunc(result, func(a, b unstructured.Unstructured) int {
+				orderA := getTestBuiltinOrder(a.GetKind())
+				orderB := getTestBuiltinOrder(b.GetKind())
 
 				// Validate expected positions
-				if result[i].GetKind() == "Namespace" {
+				if a.GetKind() == "Namespace" {
 					g.Expect(orderA).To(Equal(-220), "Namespace should be at position -220")
 				}
-				if result[i].GetKind() == "Service" {
+				if a.GetKind() == "Service" {
 					g.Expect(orderA).To(Equal(-90), "Service should be at position -90")
 				}
-				if result[i].GetKind() == "Deployment" {
+				if a.GetKind() == "Deployment" {
 					g.Expect(orderA).To(Equal(-40), "Deployment should be at position -40")
 				}
-				if result[i].GetKind() == "MutatingWebhookConfiguration" {
+				if a.GetKind() == "MutatingWebhookConfiguration" {
 					g.Expect(orderA).To(Equal(10), "MutatingWebhookConfiguration should be at position 10")
 				}
 
 				if orderA != orderB {
-					return orderA < orderB
+					return cmp.Compare(orderA, orderB)
 				}
 
-				return fallbackCompare(result[i], result[j])
+				return fallbackCompare(a, b)
 			})
 
 			return result
@@ -945,7 +944,6 @@ func TestCriticalEdgeCases(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(result).To(BeEmpty())
 	})
-
 
 	t.Run("should maintain stable sort for identical objects", func(t *testing.T) {
 		g := NewWithT(t)
